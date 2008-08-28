@@ -60,9 +60,6 @@ void PythonQt::init(int flags)
     _self = new PythonQt(flags);
   }
 
-  PythonQtMethodInfo::addParameterTypeAlias("QObjectList", "QList<QObject*>");
-  qRegisterMetaType<QList<QObject*> >("QList<void*>");
-
   PythonQt::self()->addDecorators(new PythonQtStdDecorators());
   
   PythonQt::priv()->addVariantWrapper("QBitArray", new PythonQtQBitArrayWrapper);
@@ -574,12 +571,6 @@ QStringList PythonQt::introspection(PyObject* module, const QString& objectname,
     object = module;
   } else {
     object = lookupObject(module, objectname);
-    if (!object && type == CallOverloads) {
-      PyObject* dict = lookupObject(module, "__builtins__");
-      if (dict) {
-        object = PyDict_GetItemString(dict, objectname.toLatin1().constData());
-      }
-    }
   }
 
   if (object) {
@@ -601,7 +592,6 @@ QStringList PythonQt::introspection(PyObject* module, const QString& objectname,
           info = info->nextInfo();
         }
       } else {
-        //TODO: use pydoc!
         PyObject* doc = PyObject_GetAttrString(object, "__doc__");
         if (doc) {
           results << PyString_AsString(doc);
@@ -620,7 +610,7 @@ QStringList PythonQt::introspection(PyObject* module, const QString& objectname,
           value = PyObject_GetAttr(object, key);
           if (!value) continue;
           keystr = PyString_AsString(key);
-          static const QString underscoreStr("__tmp");
+          static const QString underscoreStr("__");
           if (!keystr.startsWith(underscoreStr)) {
             switch (type) {
             case Anything:

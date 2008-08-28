@@ -64,7 +64,7 @@ PyObject* PythonQtConv::ConvertQtValueToPython(const PythonQtMethodInfo::Paramet
     return Py_None;
   } else {
     if (info.isPointer && (info.typeId == PythonQtMethodInfo::Unknown)) {
-      // try to convert the pointer to a Python Object
+      // convert argList[0] to python
       PyObject* pyObj = PythonQt::priv()->wrapPtr(*((void**)data), info.name);
       if (pyObj) {
         return pyObj;
@@ -77,16 +77,7 @@ PyObject* PythonQtConv::ConvertQtValueToPython(const PythonQtMethodInfo::Paramet
       // a char ptr will probably be a null terminated string, so we support that:
       return PyString_FromString(*((char**)data));
     } else {
-      if (info.typeId == PythonQtMethodInfo::Unknown || info.typeId >= QMetaType::User) {
-        if (info.name.startsWith("QList<")) {
-          QByteArray innerType = info.name.mid(6,info.name.length()-7);
-          if (innerType.endsWith("*")) {
-            innerType.truncate(innerType.length()-1);
-            return ConvertQListWithPointersToPython((QList<void*>*)data, innerType);
-          }
-        }
-      }
-      // handle values that are not yet handled and not pointers
+      // handle values that are not pointers
       return ConvertQtValueToPythonInternal(info.typeId, data);
     }
   }
@@ -126,10 +117,8 @@ PyObject* PythonQtConv::ConvertQtValueToPythonInternal(int type, void* data) {
     return PyLong_FromLongLong(*((qint64*)data));
   case QMetaType::ULongLong:
     return PyLong_FromUnsignedLongLong(*((quint64*)data));
-  case QMetaType::QByteArray: {
-    QByteArray* v = (QByteArray*) data;
-    return PyString_FromStringAndSize(*v, v->size());
-                              }
+  case QMetaType::QByteArray:
+    return PyString_FromString(*((QByteArray*)data));
   case QMetaType::QVariantMap:
     return PythonQtConv::QVariantMapToPyObject(*((QVariantMap*)data));
   case QMetaType::QVariantList:
@@ -217,13 +206,12 @@ PyObject* PythonQtConv::ConvertQtValueToPythonInternal(int type, void* data) {
       Py_INCREF(o);
       return o;
     } else {
-      if (type != PythonQtMethodInfo::Unknown) {
-        QVariant v(type, data);
-        if (v.isValid()) {
-          return (PyObject*)PythonQt::priv()->createNewPythonQtVariantWrapper(v);
-        }
+      QVariant v(type, data);
+      if (v.isValid()) {
+        return (PyObject*)PythonQt::priv()->createNewPythonQtVariantWrapper(v);
+      } else {
+        std::cerr << "Unknown type that can not be converted to Python: " << type << ", in " << __FILE__ << ":" << __LINE__ << std::endl;
       }
-      std::cerr << "Unknown type that can not be converted to Python: " << type << ", in " << __FILE__ << ":" << __LINE__ << std::endl;
     }
 }
 Py_INCREF(Py_None);
@@ -255,25 +243,10 @@ return Py_None;
        // return the ptr to the variant
        break;
      default:
-       if (info.typeId == PythonQtMethodInfo::Unknown) {
-         // check if we have a QList of pointers, which we can circumvent with a QList<void*>
-         if (info.name.startsWith("QList<")) {
-           QByteArray innerType = info.name.mid(6,info.name.length()-7);
-           if (innerType.endsWith("*")) {
-             static int id = QMetaType::type("QList<void*>");
-             PythonQtValueStorage_ADD_VALUE(global_variantStorage, QVariant, QVariant::Type(id), ptr);
-             // return the constData pointer that will be filled with the result value later on
-             ptr = (void*)((QVariant*)ptr)->constData();
-           }
-         }
-       }
-
-       if (!ptr) {
-         // everything else is stored in a QVariant...
-         PythonQtValueStorage_ADD_VALUE(global_variantStorage, QVariant, QVariant::Type(info.typeId), ptr);
-         // return the constData pointer that will be filled with the result value later on
-         ptr = (void*)((QVariant*)ptr)->constData();
-       }
+       // everything else is stored in a QVariant...
+       PythonQtValueStorage_ADD_VALUE(global_variantStorage, QVariant, QVariant::Type(info.typeId), ptr);
+       // return the constData pointer that will be filled with the result value later on
+       ptr = (void*)((QVariant*)ptr)->constData();
      }
    }
    return ptr;
@@ -444,9 +417,9 @@ return Py_None;
        break;
      case QMetaType::QByteArray:
        {
-         QByteArray bytes = PyObjGetBytes(obj, strict, ok);
+         QString str = PyObjGetString(obj, strict, ok);
          if (ok) {
-           PythonQtValueStorage_ADD_VALUE(global_variantStorage, QVariant, QVariant(bytes), ptr);
+           PythonQtValueStorage_ADD_VALUE(global_variantStorage, QVariant, QVariant(str.toUtf8()), ptr);
            ptr = (void*)((QVariant*)ptr)->constData();
          }
        }
@@ -478,37 +451,18 @@ return Py_None;
          }
        }
        break;
+     case PythonQtMethodInfo::Unknown:
+       {
+         if (PythonQt::priv()->isEnumType(meta, info.name)) {
+           unsigned int val = (unsigned int)PyObjGetLongLong(obj, strict, ok);
+           if (ok) {
+             PythonQtValueStorage_ADD_VALUE(global_valueStorage, unsigned int, val, ptr);
+           }
+         }
+       }
+       break;
        default:
        {
-         if (info.typeId == PythonQtMethodInfo::Unknown) {
-           // check for enum case
-           if (PythonQt::priv()->isEnumType(meta, info.name)) {
-             unsigned int val = (unsigned int)PyObjGetLongLong(obj, strict, ok);
-             if (ok) {
-               PythonQtValueStorage_ADD_VALUE(global_valueStorage, unsigned int, val, ptr);
-               return ptr;
-             }
-           }
-         }
-         if (info.typeId == PythonQtMethodInfo::Unknown || info.typeId >= QMetaType::User) {
-           // check for QList<AnyPtr*> case, where we will use a QList<void*> QVariant
-           if (info.name.startsWith("QList<")) {
-             QByteArray innerType = info.name.mid(6,info.name.length()-7);
-             if (innerType.endsWith("*")) {
-               innerType.truncate(innerType.length()-1);
-               static int id = QMetaType::type("QList<void*>");
-               PythonQtValueStorage_ADD_VALUE(global_variantStorage, QVariant, QVariant::Type(id), ptr);
-               ptr = (void*)((QVariant*)ptr)->constData();
-               ok = ConvertPythonListToQListOfType(obj, (QList<void*>*)ptr, innerType, strict);
-               if (ok) {
-                 return ptr;
-               } else {
-                 return NULL;
-               }
-             }
-           }
-         }
-
          // for all other types, we use the same qvariant conversion and pass out the constData of the variant:
          QVariant v = PyObjToQVariant(obj, info.typeId);
          if (v.isValid()) {
@@ -579,18 +533,6 @@ QString PythonQtConv::PyObjGetString(PyObject* val, bool strict, bool& ok) {
     } else {
       ok = false;
     }
-  } else {
-    ok = false;
-  }
-  return r;
-}
-
-QByteArray PythonQtConv::PyObjGetBytes(PyObject* val, bool strict, bool& ok) {
-  QByteArray r;
-  ok = true;
-  if (val->ob_type == &PyString_Type) {
-    long size = PyString_GET_SIZE(val);
-    r = QByteArray(PyString_AS_STRING(val), size);
   } else {
     ok = false;
   }
@@ -962,51 +904,6 @@ PyObject* PythonQtConv::QVariantListToPyObject(const QVariantList& l) {
   }
   // why is the error state bad after this?
   PyErr_Clear();
-  return result;
-}
-
-PyObject* PythonQtConv::ConvertQListWithPointersToPython(QList<void*>* list, const QByteArray& type)
-{
-  PyObject* result = PyTuple_New(list->count());
-  int i = 0;
-  foreach (void* value, *list) {
-    PyTuple_SET_ITEM(result, i, PythonQt::priv()->wrapPtr(value, type));
-    i++;
-  }
-  return result;
-}
-
-bool PythonQtConv::ConvertPythonListToQListOfType(PyObject* obj, QList<void*>* list, const QByteArray& type, bool strict)
-{
-  bool result = false;
-  if (PySequence_Check(obj)) {
-    result = true;
-    int count = PySequence_Size(obj);
-    PyObject* value;
-    for (int i = 0;i<count;i++) {
-      value = PySequence_GetItem(obj,i);
-      if (value->ob_type == &PythonQtWrapper_Type) {
-        PythonQtWrapper* wrap = (PythonQtWrapper*)value;
-        // c++ wrapper, check if the class names of the c++ objects match
-        if (wrap->_info->isCPPWrapper()) {
-          //TODO: we could support inheritance on cpp wrappers as well
-          if (wrap->_info->wrappedCPPClassName() == type) {
-            list->append(wrap->_wrappedPtr);
-          } else {
-            result = false;
-            break;
-          }
-        } else {
-          if (wrap->_info->inherits(type)) {
-            list->append((void*)wrap->_obj);
-          } else {
-            result = false;
-            break;
-          }
-        }
-      }
-    }
-  }
   return result;
 }
 

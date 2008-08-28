@@ -46,7 +46,6 @@ static PyObject *PythonQtStdOutRedirect_new(PyTypeObject *type, PyObject *args, 
   PythonQtStdOutRedirect *self;
   self = (PythonQtStdOutRedirect *)type->tp_alloc(type, 0);
 
-  self->softspace = 0;
   self->_cb = NULL;
 
   return (PyObject *)self;
@@ -60,11 +59,6 @@ static PyObject *PythonQtStdOutRedirect_write(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "s", &string))
       return NULL;
 
-    if (s->softspace > 0) {
-      (*s->_cb)(QString(""));
-      s->softspace = 0;
-    }
-
     (*s->_cb)(QString(string));
   }
   return Py_BuildValue("");
@@ -74,13 +68,6 @@ static PyObject *PythonQtStdOutRedirect_write(PyObject *self, PyObject *args)
 static PyMethodDef PythonQtStdOutRedirect_methods[] = {
   {"write", (PyCFunction)PythonQtStdOutRedirect_write, METH_VARARGS,
     "redirect the writing to a callback"
-  },
-  {NULL}  /* Sentinel */
-};
-
-static PyMemberDef PythonQtStdOutRedirect_members[] = {
-  {"softspace", T_INT, offsetof(PythonQtStdOutRedirect, softspace), 0,
-    "soft space flag"
   },
   {NULL}  /* Sentinel */
 };
@@ -115,7 +102,7 @@ PyTypeObject PythonQtStdOutRedirectType = {
     0,                   /* tp_iter */
     0,                   /* tp_iternext */
     PythonQtStdOutRedirect_methods,                   /* tp_methods */
-    PythonQtStdOutRedirect_members,                   /* tp_members */
+    0,                   /* tp_members */
     0,                   /* tp_getset */
     0,                         /* tp_base */
     0,                         /* tp_dict */

@@ -58,7 +58,6 @@ typedef void PythonQtOutputChangedCB(const QString& str);
 typedef struct {
   PyObject_HEAD
   PythonQtOutputChangedCB* _cb;
-  int softspace;
 } PythonQtStdOutRedirect;
 
 #endif

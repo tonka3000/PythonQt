@@ -634,16 +634,8 @@ PythonQtImport::getMTimeOfSource(const QString& path)
   time_t mtime = 0;
   QString path2 = path;
   path2.truncate(path.length()-1);
-
-  bool hasImporter = PythonQt::importInterface()!=NULL;
-  if (hasImporter) {
-    if (PythonQt::importInterface()->exists(path2)) {
-      mtime = PythonQt::importInterface()->lastModifiedDate(path2).toTime_t();
-    }
-  } else {
-    if (QFile::exists(path2)) {
-      mtime = QFileInfo(path2).lastModified().toTime_t();
-    }
+  if (PythonQt::importInterface()->exists(path2)) {
+    mtime = PythonQt::importInterface()->lastModifiedDate(path2).toTime_t();
   }
   return mtime;
 }
@@ -776,13 +768,4 @@ void PythonQtImport::init()
   PyObject* classobj = PyDict_GetItemString(PyModule_GetDict(mod), "PythonQtImporter");
   PyObject* path_hooks = PySys_GetObject("path_hooks");
   PyList_Append(path_hooks, classobj);
-
-#ifndef WIN32
-  // reload the encodings module, because it might fail to custom import requirements (e.g. encryption).
-  PyObject* modules         = PyImport_GetModuleDict();
-  PyObject* encodingsModule = PyDict_GetItemString(modules, "encodings");
-  if (encodingsModule != NULL) {
-    PyImport_ReloadModule(encodingsModule);
-  }
-#endif
 }

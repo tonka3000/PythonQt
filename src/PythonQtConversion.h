@@ -78,12 +78,10 @@ public:
     //! get string representation of py object
   static QString PyObjGetRepresentation(PyObject* val);
 
-  //! get string value from py object
+  //! get string value form py object
   static QString PyObjGetString(PyObject* val) { bool ok; QString s = PyObjGetString(val, false, ok); return s; }
-  //! get string value from py object
+  //! get string value form py object
   static QString PyObjGetString(PyObject* val, bool strict, bool &ok);
-  //! get bytes from py object
-  static QByteArray PyObjGetBytes(PyObject* val, bool strict, bool &ok);
   //! get int from py object
   static int     PyObjGetInt(PyObject* val, bool strict, bool &ok);
   //! get int64 from py object
@@ -118,10 +116,6 @@ protected:
   //! converts the Qt parameter given in \c data, interpreting it as a \c type registered qvariant/meta type, into a Python object,
   static PyObject* ConvertQtValueToPythonInternal(int type, void* data);
 
-  //! converts the list of pointers of given type to Python
-  static PyObject* ConvertQListWithPointersToPython(QList<void*>* list, const QByteArray& type);
-  //! tries to convert the python object to a QList of pointers to \c type objects, returns true on success
-  static bool      ConvertPythonListToQListOfType(PyObject* obj, QList<void*>* list, const QByteArray& type, bool strict);
 };
 
 #endif

@@ -163,13 +163,13 @@ QString qVariantToString(const QVariant& v) {
     r += ", " + QString::number(v.toRectF().width()) + ", " + QString::number(v.toRectF().height());
     break;
   case QVariant::Date:
-    r = v.toDate().toString(Qt::ISODate);
+    r = v.toDate().toString("ddMMyyyy");
     break;
   case QVariant::DateTime:
-    r = v.toDateTime().toString(Qt::ISODate);
+    r = v.toDateTime().toString("ddMMyyyy,hh:mm:ss");
     break;
   case QVariant::Time:
-    r = v.toTime().toString(Qt::ISODate);
+    r = v.toTime().toString("hh:mm:ss");
     break;
     //TODO: add more printing for other variant types
   default:
@@ -182,7 +182,7 @@ static PyObject * PythonQtVariantWrapper_str(PyObject * obj)
 {
   PythonQtVariantWrapper* wt = (PythonQtVariantWrapper*)obj;
   QString val = qVariantToString(*wt->_variant);
-  return PyString_FromFormat("%s", val.toLatin1().constData());
+  return PyString_FromFormat("(%s)", val.toLatin1().constData());
 }
 
 static PyObject * PythonQtVariantWrapper_repr(PyObject * obj)
